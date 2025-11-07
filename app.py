@@ -1,168 +1,231 @@
-# from flask import Flask, request, jsonify, render_template_string
-# import pandas as pd
-# import pickle
-
-# app = Flask(__name__)
-
-# # ------------------------------
-# # Load saved model and scaler
-# # ------------------------------
-# with open("calorie_model.pkl", "rb") as f:
-#     model = pickle.load(f)
-
-# with open("scaler.pkl", "rb") as f:
-#     scaler = pickle.load(f)
-
-# # Exact features used during training
-# high_corr_features = [
-#     'Age', 'Gender', 'Weight (kg)', 'Height (m)', 'Avg_BPM',
-#     'Session_Duration (hours)', 'Fat_Percentage', 'Water_Intake (liters)',
-#     'Workout_Frequency (days/week)', 'Experience_Level', 'BMI'
-# ]
-
-# # ------------------------------
-# # Home page with HTML form
-# # ------------------------------
-# @app.route("/", methods=["GET", "POST"])
-# def home():
-#     result = None
-#     if request.method == "POST":
-#         # Create data dictionary from form input
-#         data = {feature: float(request.form[feature]) for feature in high_corr_features}
-#         data['Gender'] = int(data['Gender'])  # Gender should be int
-
-#         df = pd.DataFrame([data])
-#         X_scaled = scaler.transform(df[high_corr_features])
-#         per_session = float(model.predict(X_scaled)[0])
-#         workout_freq = data["Workout_Frequency (days/week)"]
-#         per_week = per_session * workout_freq
-#         per_month = per_week * 4
-
-#         result = f"🔥 Per Session: {per_session:.2f} kcal | 📅 Per Week: {per_week:.2f} kcal | 🗓️ Per Month: {per_month:.2f} kcal"
-
-#     # Simple HTML form
-#     html = """
-#     <h1>Calories Prediction</h1>
-#     <form method="POST">
-#     {% for feature in features %}
-#       {{feature}}: <input name="{{feature}}"><br>
-#     {% endfor %}
-#     <br><input type="submit" value="Predict Calories">
-#     </form>
-#     <h2>{{result}}</h2>
-#     """
-#     return render_template_string(html, result=result, features=high_corr_features)
-
-# # ------------------------------
-# # API route for frontend React
-# # ------------------------------
-# @app.route("/predict", methods=["POST"])
-# def predict():
-#     data = request.json
-#     # Keep only the features model expects
-#     filtered_data = {f: data[f] for f in high_corr_features if f in data}
-#     filtered_data['Gender'] = int(filtered_data['Gender'])
-#     df = pd.DataFrame([filtered_data])
-
-#     X_scaled = scaler.transform(df[high_corr_features])
-#     per_session = float(model.predict(X_scaled)[0])
-#     workout_freq = filtered_data.get("Workout_Frequency (days/week)", 1)
-#     per_week = per_session * workout_freq
-#     per_month = per_week * 4
-
-#     return jsonify({
-#         "per_session": round(per_session, 2),
-#         "per_week": round(per_week, 2),
-#         "per_month": round(per_month, 2)
-#     })
-
-# # ------------------------------
-# # Run Flask app
-# # ------------------------------
-# if __name__ == "__main__":
-#     app.run(debug=True)
-
-
-
-# from flask import Flask, request, jsonify, render_template_string
+# from flask import Flask, request, jsonify
 # from flask_cors import CORS
 # import pandas as pd
+# import numpy as np
+# from sklearn.preprocessing import StandardScaler
+# from sklearn.metrics.pairwise import cosine_similarity
+# import random
 # import pickle
 
+# # ===============================
+# # 1. Initialize Flask
+# # ===============================
 # app = Flask(__name__)
-# CORS(app)  # allow React frontend to access
+# CORS(app)
 
-# # ------------------------------
-# # Load saved model and scaler
-# # ------------------------------
-# with open(r"api\calorie_model.pkl", "rb") as f:
-#     model = pickle.load(f)
+# # ===============================
+# # 2. Load dataset and scaler
+# # ===============================
+# data = pd.read_excel("gym recommendation.xlsx")  # your dataset
 
-# with open(r"api\scaler.pkl", "rb") as f:
+# # Encode categorical features
+# data['Sex'] = data['Sex'].map({'Male': 1, 'Female': 0})
+# data['Hypertension'] = data['Hypertension'].map({'Yes': 1, 'No': 0})
+# data['Diabetes'] = data['Diabetes'].map({'Yes': 1, 'No': 0})
+# level_map = {'Normal': 0, 'Obese': 1, 'Overweight': 2, 'Underweight': 3}
+# goal_map = {'Weight Gain': 0, 'Weight Loss': 1}
+# fitness_type_map = {'Cardio Fitness': 0, 'Muscular Fitness': 1}
+
+# data['Level'] = data['Level'].map(level_map)
+# data['Fitness Goal'] = data['Fitness Goal'].map(goal_map)
+# data['Fitness Type'] = data['Fitness Type'].map(fitness_type_map)
+
+# # Load pre-fitted scaler
+# with open("diet_scaler.pkl", "rb") as f:
 #     scaler = pickle.load(f)
 
-# # Exact features used during training
-# high_corr_features = [
-#     'Age', 'Gender', 'Weight (kg)', 'Height (m)', 'Avg_BPM',
-#     'Session_Duration (hours)', 'Fat_Percentage', 'Water_Intake (liters)',
-#     'Workout_Frequency (days/week)', 'Experience_Level', 'BMI'
+# # ===============================
+# # 3. Expected Input Features
+# # ===============================
+# FEATURES = [
+#     "Sex", "Age", "Height", "Weight", "Hypertension", "Diabetes",
+#     "BMI", "Level", "Fitness Goal", "Fitness Type"
 # ]
+# NUM_FEATURES = ["Age", "Height", "Weight", "BMI"]
 
-# # Mapping from React keys to model keys
-# key_map = {
-#     "Age": "Age",
-#     "Gender": "Gender",
-#     "Weight_kg": "Weight (kg)",
-#     "Height_m": "Height (m)",
-#     "Avg_BPM": "Avg_BPM",
-#     "Session_Duration_hours": "Session_Duration (hours)",
-#     "Fat_Percentage": "Fat_Percentage",
-#     "Water_Intake_liters": "Water_Intake (liters)",
-#     "Workout_Frequency_days_week": "Workout_Frequency (days/week)",
-#     "Experience_Level": "Experience_Level",
-#     "BMI": "BMI"
-# }
+# # ===============================
+# # 4. Recommendation Function
+# # ===============================
+# def recommend(user_input, top_n=3):
+#     user_df = pd.DataFrame([user_input])
+
+#     print("📊 Before scaling:")
+#     print(user_df[NUM_FEATURES].dtypes)
+#     print(user_df[NUM_FEATURES])
+
+#     # Ensure numeric conversion
+#     user_df[NUM_FEATURES] = user_df[NUM_FEATURES].apply(pd.to_numeric, errors="coerce")
+
+#     # Check for NaNs before scaling
+#     if user_df[NUM_FEATURES].isnull().any().any():
+#         raise ValueError(f"NaN values found before scaling: {user_df[NUM_FEATURES].isnull().sum().to_dict()}")
+
+#     # Scale numeric features
+#     scaled = scaler.transform(user_df[NUM_FEATURES])
+#     print("✅ Scaled output:", scaled)
+
+#     user_df[NUM_FEATURES] = scaled
+#     user_input.update(user_df.iloc[0].to_dict())
+
+#     # Continue your similarity logic below...
+
+
+
+# # ===============================
+# # 5. Flask Routes
+# # ===============================
 # @app.route("/", methods=["GET"])
-# # def home():
-# #     return "✅ ML Flask server is running!"
-# # ------------------------------
-# # API route for frontend React
-# # ------------------------------
-# @app.route("/predict", methods=["POST"])
-# def predict():
+# def home():
+#     return "✅ Diet Recommendation Flask server is running!"
+
+# @app.route("/recommend", methods=["POST"])
+# def recommend_api():
 #     try:
-#         data = request.json
+#         user_input = request.get_json(force=True)
+#         print("\n📦 Received JSON from frontend:")
+#         print(user_input)   # 👈 print what came from React
 
-#         # Map React keys to model keys
-#         mapped_data = {key_map[k]: data[k] for k in data if k in key_map}
-#         mapped_data['Gender'] = int(mapped_data['Gender'])  # ensure Gender is int
+#         missing = [f for f in FEATURES if f not in user_input]
+#         if missing:
+#             print("❌ Missing features:", missing)
+#             return jsonify({"error": f"Missing features: {missing}"}), 400
 
-#         df = pd.DataFrame([mapped_data])
-
-#         # Scale features
-#         X_scaled = scaler.transform(df[high_corr_features])
-
-#         # Predict calories
-#         per_session = float(model.predict(X_scaled)[0])
-#         workout_freq = mapped_data.get("Workout_Frequency (days/week)", 1)
-#         per_week = per_session * workout_freq
-#         per_month = per_week * 4
-
-#         return jsonify({
-#             "per_session": round(per_session, 2),
-#             "per_week": round(per_week, 2),
-#             "per_month": round(per_month, 2)
-#         })
+#         recommendations = recommend(user_input)
+#         return jsonify({"recommendations": recommendations})
 
 #     except Exception as e:
-#         print("Error:", e)
+#         print("🔥 Exception:", e)
 #         return jsonify({"error": str(e)}), 400
 
-# # ------------------------------
-# # Run Flask app
-# # ------------------------------
+
+# # ===============================
+# # 6. Run Flask server
+# # ===============================
 # if __name__ == "__main__":
-#     app.run(debug=True)
+#     app.run(host="0.0.0.0", port=5001, debug=True)
+
+
+
+# from flask import Flask, request, jsonify
+# from flask_cors import CORS
+# import pandas as pd
+# import numpy as np
+# from sklearn.preprocessing import StandardScaler
+# from sklearn.metrics.pairwise import cosine_similarity
+# import random
+# import pickle
+
+# # ===============================
+# # 1. Initialize Flask
+# # ===============================
+# app = Flask(__name__)
+# CORS(app)
+
+# # ===============================
+# # 2. Load dataset and scaler
+# # ===============================
+# data = pd.read_excel("gym recommendation.xlsx")
+
+# # Fix typos
+# data['Level'] = data['Level'].replace({'Obuse': 'Obese'})
+
+# # Encode categorical features
+# data['Sex'] = data['Sex'].map({'Male': 1, 'Female': 0})
+# data['Hypertension'] = data['Hypertension'].map({'Yes': 1, 'No': 0})
+# data['Diabetes'] = data['Diabetes'].map({'Yes': 1, 'No': 0})
+
+# level_map = {'Normal': 0, 'Obese': 1, 'Overweight': 2, 'Underweight': 3}
+# goal_map = {'Weight Gain': 0, 'Weight Loss': 1}
+# fitness_type_map = {'Cardio Fitness': 0, 'Muscular Fitness': 1}
+
+# data['Level'] = data['Level'].map(level_map)
+# data['Fitness Goal'] = data['Fitness Goal'].map(goal_map)
+# data['Fitness Type'] = data['Fitness Type'].map(fitness_type_map)
+
+# # Load pre-fitted scaler
+# with open("diet_scaler.pkl", "rb") as f:
+#     scaler = pickle.load(f)
+
+# # ===============================
+# # 3. Features
+# # ===============================
+# FEATURES = ["Sex", "Age", "Height", "Weight", "Hypertension", "Diabetes",
+#             "BMI", "Level", "Fitness Goal", "Fitness Type"]
+# NUM_FEATURES = ["Age", "Height", "Weight", "BMI"]
+
+# # ===============================
+# # 4. Recommendation Logic
+# # ===============================
+# def recommend(user_input, top_n=3):
+#     user_df = pd.DataFrame([user_input])
+
+#     # Ensure numeric conversion
+#     user_df[NUM_FEATURES] = user_df[NUM_FEATURES].apply(pd.to_numeric, errors="coerce")
+
+#     # Scale numeric features
+#     user_df[NUM_FEATURES] = scaler.transform(user_df[NUM_FEATURES])
+#     user_input.update(user_df.iloc[0].to_dict())
+
+#     # Similarity calculation
+#     similarity_scores = cosine_similarity(data[FEATURES], pd.DataFrame([user_input])).flatten()
+#     similar_indices = similarity_scores.argsort()[-5:][::-1]
+#     similar_users = data.iloc[similar_indices]
+
+#     # Base recommendation
+#     base_rec = similar_users[['Exercises', 'Diet', 'Equipment']].mode().iloc[0]
+
+#     # Generate variations
+#     recs = [base_rec.to_dict()]
+#     for _ in range(2):
+#         modified_input = user_input.copy()
+#         modified_input['Age'] += random.randint(-3, 3)
+#         modified_input['Weight'] += random.uniform(-3, 3)
+#         modified_input['BMI'] += random.uniform(-0.5, 0.5)
+
+#         mod_df = pd.DataFrame([modified_input])
+#         mod_df[NUM_FEATURES] = scaler.transform(mod_df[NUM_FEATURES])
+#         modified_input.update(mod_df.iloc[0].to_dict())
+
+#         mod_scores = cosine_similarity(data[FEATURES], pd.DataFrame([modified_input])).flatten()
+#         mod_indices = mod_scores.argsort()[-5:][::-1]
+#         mod_users = data.iloc[mod_indices]
+#         mod_rec = mod_users[['Exercises', 'Diet', 'Equipment']].mode().iloc[0].to_dict()
+
+#         if mod_rec not in recs:
+#             recs.append(mod_rec)
+
+#     return recs
+
+# # ===============================
+# # 5. Flask Routes
+# # ===============================
+# @app.route("/", methods=["GET"])
+# def home():
+#     return "✅ Diet + Workout Recommendation Flask server is running!"
+
+# @app.route("/recommend", methods=["POST"])
+# def recommend_api():
+#     try:
+#         user_input = request.get_json(force=True)
+#         print("\n📦 Received JSON from frontend:")
+#         print(user_input)
+
+#         missing = [f for f in FEATURES if f not in user_input]
+#         if missing:
+#             return jsonify({"error": f"Missing features: {missing}"}), 400
+
+#         recs = recommend(user_input)
+#         return jsonify({"recommendations": recs})
+
+#     except Exception as e:
+#         print("🔥 Exception:", e)
+#         return jsonify({"error": str(e)}), 400
+
+# # ===============================
+# # 6. Run Server
+# # ===============================
+# if __name__ == "__main__":
+#     app.run(host="0.0.0.0", port=5001, debug=True)
 
 
 
@@ -170,374 +233,144 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
-import pickle
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics.pairwise import cosine_similarity
+import random
 
 # ===============================
-# Initialize Flask
+# 1. Initialize Flask
 # ===============================
 app = Flask(__name__)
 CORS(app)
 
 # ===============================
-# Load Model and Scaler
+# 2. Load dataset
 # ===============================
-with open(r"calorie_model.pkl", "rb") as f:
-    model = pickle.load(f)
-
-with open(r"scaler.pkl", "rb") as f:
-    scaler = pickle.load(f)
+data = pd.read_excel("gym recommendation.xlsx")
 
 # ===============================
-# Features expected from React
+# 3. Fix typos and encode categorical features
 # ===============================
-FEATURES = [
-    "Age",
-    "Gender",
-    "Weight (kg)",
-    "Height (m)",
-    "Avg_BPM",
-    "Session_Duration (hours)",
-    "Fat_Percentage",
-    "Water_Intake (liters)",
-    "Workout_Frequency (days/week)",
-    "Experience_Level",
-    "BMI",
-]
+data['Level'] = data['Level'].replace({'Obuse': 'Obese'})
 
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ ML Flask server is running!"
+data['Sex'] = data['Sex'].map({'Male': 1, 'Female': 0})
+data['Hypertension'] = data['Hypertension'].map({'Yes': 1, 'No': 0})
+data['Diabetes'] = data['Diabetes'].map({'Yes': 1, 'No': 0})
+
+level_map = {'Normal': 0, 'Obese': 1, 'Overweight': 2, 'Underweight': 3}
+goal_map = {'Weight Gain': 0, 'Weight Loss': 1}
+fitness_type_map = {'Cardio Fitness': 0, 'Muscular Fitness': 1}
+
+data['Level'] = data['Level'].map(level_map)
+data['Fitness Goal'] = data['Fitness Goal'].map(goal_map)
+data['Fitness Type'] = data['Fitness Type'].map(fitness_type_map)
 
 # ===============================
-# API Route for prediction
+# 4. Scale numeric features
 # ===============================
-@app.route("/predict", methods=["POST"])
-def predict():
+num_features = ['Age', 'Height', 'Weight', 'BMI']
+scaler = StandardScaler()
+data[num_features] = scaler.fit_transform(data[num_features])
+
+# ===============================
+# 5. Recommendation Logic
+# ===============================
+def get_recommendation(user_input):
     try:
-        data = request.get_json(force=True)
+        # Convert and scale user input
+        user_df = pd.DataFrame([user_input])
+        user_df[num_features] = scaler.transform(user_df[num_features])
+        user_input.update(user_df.iloc[0].to_dict())
 
-        # Check for missing fields
-        missing = [f for f in FEATURES if f not in data]
-        if missing:
-            return jsonify({"error": f"Missing features: {missing}"}), 400
+        feature_cols = ['Sex', 'Age', 'Height', 'Weight', 'Hypertension',
+                        'Diabetes', 'BMI', 'Level', 'Fitness Goal', 'Fitness Type']
 
-        # Convert to DataFrame
-        input_df = pd.DataFrame([data], columns=FEATURES)
+        # Similarity calculation
+        similarity_scores = cosine_similarity(data[feature_cols], pd.DataFrame([user_input])).flatten()
+        similar_user_indices = similarity_scores.argsort()[-5:][::-1]
+        similar_users = data.iloc[similar_user_indices]
+        recommendation_1 = similar_users[['Exercises', 'Diet', 'Equipment']].mode().iloc[0]
 
-        # Convert Gender to int
-        input_df["Gender"] = input_df["Gender"].astype(int)
+        # Generate two variations
+        simulated_recommendations = []
+        for _ in range(2):
+            modified_input = user_input.copy()
+            modified_input['Age'] += random.randint(-3, 3)
+            modified_input['Weight'] += random.uniform(-3, 3)
+            modified_input['BMI'] += random.uniform(-0.5, 0.5)
 
-        # Scale features
-        X_scaled = scaler.transform(input_df)
+            modified_df = pd.DataFrame([modified_input])
+            modified_df[num_features] = scaler.transform(modified_df[num_features])
+            modified_input.update(modified_df.iloc[0].to_dict())
 
-        # Predict calories
-        per_session = float(model.predict(X_scaled)[0])
-        workout_freq = input_df["Workout_Frequency (days/week)"].iloc[0]
-        per_week = per_session * workout_freq
-        per_month = per_week * 4
+            modified_scores = cosine_similarity(data[feature_cols], pd.DataFrame([modified_input])).flatten()
+            modified_indices = modified_scores.argsort()[-5:][::-1]
+            modified_users = data.iloc[modified_indices]
+            rec = modified_users[['Exercises', 'Diet', 'Equipment']].mode().iloc[0]
 
-        # ✅ Unified response keys (frontend will use these)
-        return jsonify({
-            "per_session": round(per_session, 2),
-            "per_week": round(per_week, 2),
-            "per_month": round(per_month, 2)
-        })
+            if not any(
+                rec['Exercises'] == r['Exercises'] and
+                rec['Diet'] == r['Diet'] and
+                rec['Equipment'] == r['Equipment']
+                for r in simulated_recommendations
+            ):
+                simulated_recommendations.append(rec)
+
+        # ======= Console Output Style =======
+        print("\nRecommended Workout and Diet Plans:")
+        print("\nRecommendation 1 (Exact match):")
+        print("Exercises:", recommendation_1['Exercises'])
+        print("Diet:", recommendation_1['Diet'])
+        print("Equipment:", recommendation_1['Equipment'])
+
+        for idx, rec in enumerate(simulated_recommendations, start=2):
+            print(f"\nRecommendation {idx} (Slight variation):")
+            print("Exercises:", rec['Exercises'])
+            print("Diet:", rec['Diet'])
+            print("Equipment:", rec['Equipment'])
+
+        # Return recommendations as JSON-compatible list
+        recs = [recommendation_1] + simulated_recommendations
+        return [r.to_dict() for r in recs]
 
     except Exception as e:
-        print("Error:", e)
+        print("🔥 Exception in recommendation:", e)
+        return None
+
+# ===============================
+# 6. Flask Routes
+# ===============================
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Diet + Workout Recommendation Flask server is running!"
+
+@app.route("/recommend", methods=["POST"])
+def recommend_api():
+    try:
+        user_input = request.get_json(force=True)
+        print("\n📦 Received JSON from frontend:")
+        print(user_input)
+
+        # Ensure required keys exist
+        required = ['Sex', 'Age', 'Height', 'Weight', 'Hypertension', 'Diabetes',
+                    'BMI', 'Level', 'Fitness Goal', 'Fitness Type']
+        missing = [f for f in required if f not in user_input]
+        if missing:
+            return jsonify({"error": f"Missing keys: {missing}"}), 400
+
+        recs = get_recommendation(user_input)
+        if recs is None:
+            return jsonify({"error": "Recommendation failed"}), 400
+
+        return jsonify({"recommendations": recs}), 200
+
+    except Exception as e:
+        print("🔥 Exception:", e)
         return jsonify({"error": str(e)}), 400
 
 # ===============================
-# Run Flask server
+# 7. Run Server
 # ===============================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-
-
-
-
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import pandas as pd
-# import pickle
-# import os
-
-# app = Flask(__name__)
-# CORS(app)
-
-# # Load model and scaler
-# MODEL_PATH = os.path.join(os.path.dirname(__file__), "calorie_model.pkl")
-# SCALER_PATH = os.path.join(os.path.dirname(__file__), "scaler.pkl")
-
-# with open(MODEL_PATH, "rb") as f:
-#     model = pickle.load(f)
-
-# with open(SCALER_PATH, "rb") as f:
-#     scaler = pickle.load(f)
-
-# FEATURES = [
-#     "Age",
-#     "Gender",
-#     "Weight (kg)",
-#     "Height (m)",
-#     "Avg_BPM",
-#     "Session_Duration (hours)",
-#     "Fat_Percentage",
-#     "Water_Intake (liters)",
-#     "Workout_Frequency (days/week)",
-#     "Experience_Level",
-#     "BMI",
-# ]
-
-# @app.route("/", methods=["GET"])
-# def home():
-#     return "✅ ML Flask serverless function is running!"
-
-# @app.route("/", methods=["POST"])
-# def predict():
-#     try:
-#         data = request.json
-#         missing = [f for f in FEATURES if f not in data]
-#         if missing:
-#             return jsonify({"error": f"Missing features: {missing}"}), 400
-
-#         df = pd.DataFrame([data], columns=FEATURES)
-#         df["Gender"] = df["Gender"].astype(int)
-#         X_scaled = scaler.transform(df)
-#         per_session = float(model.predict(X_scaled)[0])
-#         workout_freq = df["Workout_Frequency (days/week)"].iloc[0]
-#         per_week = per_session * workout_freq
-#         per_month = per_week * 4
-
-#         return jsonify({
-#             "per_session": round(per_session, 2),
-#             "per_week": round(per_week, 2),
-#             "per_month": round(per_month, 2)
-#         })
-
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 400
-
-
-
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import pandas as pd
-# import pickle
-
-# app = Flask(__name__)
-# CORS(app, origins=["*"])  # allow React frontend to access
-
-# # ------------------------------
-# # Load saved model and scaler
-# # ------------------------------
-# with open("calorie_model.pkl", "rb") as f:
-#     model = pickle.load(f)
-
-# with open("scaler.pkl", "rb") as f:
-#     scaler = pickle.load(f)
-
-# # Features used by the model
-# FEATURES = [
-#     "Age",
-#     "Gender",
-#     "Weight (kg)",
-#     "Height (m)",
-#     "Avg_BPM",
-#     "Session_Duration (hours)",
-#     "Fat_Percentage",
-#     "Water_Intake (liters)",
-#     "Workout_Frequency (days/week)",
-#     "Experience_Level",
-#     "BMI"
-# ]
-
-# # Map React frontend keys to model keys
-# KEY_MAP = {
-#     "Age": "Age",
-#     "Gender": "Gender",
-#     "Weight_kg": "Weight (kg)",
-#     "Height_m": "Height (m)",
-#     "Avg_BPM": "Avg_BPM",
-#     "Session_Duration_hours": "Session_Duration (hours)",
-#     "Fat_Percentage": "Fat_Percentage",
-#     "Water_Intake_liters": "Water_Intake (liters)",
-#     "Workout_Frequency_days_week": "Workout_Frequency (days/week)",
-#     "Experience_Level": "Experience_Level",
-#     "BMI": "BMI"
-# }
-
-# # ------------------------------
-# # Home endpoint
-# # ------------------------------
-# @app.route("/", methods=["GET"])
-# def home():
-#     return jsonify({"message": "✅ ML Flask serverless server is running!"})
-
-# # ------------------------------
-# # Prediction endpoint
-# # ------------------------------
-# @app.route("/predict", methods=["POST"])
-# def predict():
-#     try:
-#         data = request.json
-#         # Map frontend keys to model keys
-#         mapped_data = {KEY_MAP[k]: data[k] for k in data if k in KEY_MAP}
-#         mapped_data['Gender'] = int(mapped_data['Gender'])
-
-#         df = pd.DataFrame([mapped_data], columns=FEATURES)
-#         X_scaled = scaler.transform(df)
-
-#         per_session = float(model.predict(X_scaled)[0])
-#         workout_freq = mapped_data.get("Workout_Frequency (days/week)", 1)
-#         per_week = per_session * workout_freq
-#         per_month = per_week * 4
-
-#         return jsonify({
-#             "per_session": round(per_session, 2),
-#             "per_week": round(per_week, 2),
-#             "per_month": round(per_month, 2)
-#         })
-
-#     except Exception as e:
-#         print("Error:", e)
-#         return jsonify({"error": str(e)}), 400
-
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import pandas as pd
-# import pickle
-
-# app = Flask(__name__)
-# CORS(app, origins=["*"])  # allow all origins
-
-# # Load model & scaler
-# with open(r"api\calorie_model.pkl", "rb") as f:
-#     model = pickle.load(f)
-
-# with open(r"api\scaler.pkl", "rb") as f:
-#     scaler = pickle.load(f)
-
-# FEATURES = [
-#     "Age","Gender","Weight (kg)","Height (m)","Avg_BPM",
-#     "Session_Duration (hours)","Fat_Percentage","Water_Intake (liters)",
-#     "Workout_Frequency (days/week)","Experience_Level","BMI"
-# ]
-
-# KEY_MAP = {
-#     "Age": "Age", "Gender": "Gender","Weight_kg": "Weight (kg)","Height_m": "Height (m)",
-#     "Avg_BPM": "Avg_BPM","Session_Duration_hours": "Session_Duration (hours)",
-#     "Fat_Percentage": "Fat_Percentage","Water_Intake_liters": "Water_Intake (liters)",
-#     "Workout_Frequency_days_week": "Workout_Frequency (days/week)",
-#     "Experience_Level": "Experience_Level","BMI": "BMI"
-# }
-
-# @app.route("/", methods=["GET"])
-# def home():
-#     return jsonify({"message": "✅ ML Flask serverless server is running!"})
-
-# @app.route("/predict", methods=["POST","OPTIONS"])
-# def predict():
-#     # Handle preflight request
-#     if request.method == "OPTIONS":
-#         response = jsonify({"message":"ok"})
-#         response.headers.add("Access-Control-Allow-Origin", "*")
-#         response.headers.add("Access-Control-Allow-Headers", "*")
-#         response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
-#         return response
-
-#     try:
-#         data = request.json
-#         mapped_data = {KEY_MAP[k]: data[k] for k in data if k in KEY_MAP}
-#         mapped_data['Gender'] = int(mapped_data['Gender'])
-
-#         df = pd.DataFrame([mapped_data], columns=FEATURES)
-#         X_scaled = scaler.transform(df)
-
-#         per_session = float(model.predict(X_scaled)[0])
-#         workout_freq = mapped_data.get("Workout_Frequency (days/week)", 1)
-#         per_week = per_session * workout_freq
-#         per_month = per_week * 4
-
-#         response = jsonify({
-#             "per_session": round(per_session, 2),
-#             "per_week": round(per_week, 2),
-#             "per_month": round(per_month, 2)
-#         })
-#         response.headers.add("Access-Control-Allow-Origin", "*")
-#         return response
-
-#     except Exception as e:
-#         print("Error:", e)
-#         return jsonify({"error": str(e)}), 400
-
-
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# import pandas as pd
-# import pickle
-
-# # ===============================
-# # Initialize Flask
-# # ===============================
-# app = Flask(__name__)
-# CORS(app)
-
-# # ===============================
-# # Load Model and Scaler
-# # ===============================
-# with open("api/calorie_model.pkl", "rb") as f:
-#     model = pickle.load(f)
-
-# with open("api/scaler.pkl", "rb") as f:
-#     scaler = pickle.load(f)
-
-# # ===============================
-# # Features
-# # ===============================
-# FEATURES = [
-#     "Age",
-#     "Gender",
-#     "Weight (kg)",
-#     "Height (m)",
-#     "Avg_BPM",
-#     "Session_Duration (hours)",
-#     "Fat_Percentage",
-#     "Water_Intake (liters)",
-#     "Workout_Frequency (days/week)",
-#     "Experience_Level",
-#     "BMI",
-# ]
-
-# @app.route("/", methods=["GET"])
-# def home():
-#     return "✅ ML Flask server is running on Vercel!"
-
-# @app.route("/predict", methods=["POST"])
-# def predict():
-#     try:
-#         data = request.json
-#         missing = [f for f in FEATURES if f not in data]
-#         if missing:
-#             return jsonify({"error": f"Missing features: {missing}"}), 400
-
-#         input_df = pd.DataFrame([data], columns=FEATURES)
-#         input_df["Gender"] = input_df["Gender"].astype(int)
-
-#         X_scaled = scaler.transform(input_df)
-#         per_session = float(model.predict(X_scaled)[0])
-#         workout_freq = input_df["Workout_Frequency (days/week)"].iloc[0]
-#         per_week = per_session * workout_freq
-#         per_month = per_week * 4
-
-#         return jsonify({
-#             "per_session": round(per_session, 2),
-#             "per_week": round(per_week, 2),
-#             "per_month": round(per_month, 2)
-#         })
-
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 400
-
-# Do NOT include app.run() for Vercel
+    app.run(host="0.0.0.0", port=5001, debug=True)
