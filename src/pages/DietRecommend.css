@@ -1,3 +1,7 @@
+/* =============================
+   🌿 DIET RECOMMENDATION PAGE
+   ============================= */
+
 /* === PAGE LAYOUT === */
 .diet-page {
   display: flex;
@@ -5,64 +9,94 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-  padding: 1.5rem;
+  background: linear-gradient(135deg, #173753, #1B4353);
+  padding: 2rem;
+  font-family: 'Poppins', sans-serif;
+  color: #1e3a8a;
 }
 
+/* === MAIN CONTAINER === */
 .diet-container {
   background-color: #f8fafc;
-  border-radius: 1.25rem;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-  padding: 2rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  padding: 2.5rem 3rem;
   width: 100%;
-  max-width: 700px;
+  max-width: 720px;
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.diet-container:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.4);
 }
 
 /* === TITLE === */
 .title {
-  font-size: 1.8rem;
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
   font-weight: 700;
-  text-align: center;
-  color: #1e3a8a;
-  margin-bottom: 1.5rem;
+  color: #1b4f72;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin-bottom: 2rem;
 }
 
 /* === FORM === */
 .form {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 1rem;
 }
 
+/* === INPUT FIELDS === */
 .input-field {
   width: 100%;
   border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
+  border-radius: 0.75rem;
+  padding: 0.9rem;
   font-size: 1rem;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  color: #173753;
+  background-color: #e9ecef;
+  transition: all 0.3s ease;
 }
 
 .input-field:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  outline: none;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(40, 146, 215, 0.3);
+  border-color: #2892d7;
 }
 
+/* Read-only BMI field */
+.read-only {
+  background-color: #f1f5f9;
+  color: #555;
+  cursor: not-allowed;
+}
+
+/* Height row (ft + in) */
+.input-row {
+  display: flex;
+  gap: 0.8rem;
+}
+
+/* === SUBMIT BUTTON === */
 .submit-btn {
-  background-color: #2563eb;
+  background-color: #2892d7;
   color: white;
   font-weight: 600;
   padding: 0.9rem;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: 0.8rem;
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition: all 0.3s ease;
+  margin-top: 0.5rem;
 }
 
 .submit-btn:hover {
-  background-color: #1e40af;
-  transform: scale(1.02);
+  background-color: #1d70a2;
+  transform: scale(1.05);
 }
 
 /* === ERROR TEXT === */
@@ -70,36 +104,41 @@
   color: #dc2626;
   text-align: center;
   margin-top: 1rem;
+  font-weight: 500;
 }
 
 /* === RECOMMENDATION SECTION === */
 .recommendation-container {
-  margin-top: 2rem;
+  margin-top: 2.5rem;
+  text-align: left;
 }
 
 .recommendation-title {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 600;
   text-align: center;
   color: #1e3a8a;
   margin-bottom: 1.5rem;
 }
 
+/* Each recommendation box */
 .recommendation-box {
   background: linear-gradient(135deg, #bfdbfe, #93c5fd);
   border: 1px solid #60a5fa;
   border-radius: 1rem;
-  padding: 1.25rem;
+  padding: 1.5rem;
   color: #1e3a8a;
   box-shadow: 0 4px 10px rgba(30, 64, 175, 0.25);
-  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  margin-bottom: 1.25rem;
+  transition: transform 0.25s ease, box-shadow 0.3s ease;
 }
 
 .recommendation-box:hover {
   transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(30, 64, 175, 0.3);
+  box-shadow: 0 8px 16px rgba(30, 64, 175, 0.3);
 }
 
+/* Header inside recommendation */
 .recommendation-header {
   font-size: 1.25rem;
   font-weight: 700;
@@ -107,10 +146,35 @@
   margin-bottom: 1rem;
 }
 
+/* Each section (Exercises, Diet, Equipment) */
 .recommendation-section {
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(255, 255, 255, 0.85);
   border-left: 4px solid #2563eb;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  margin-bottom: 0.75rem;
+  border-radius: 0.6rem;
+  padding: 0.8rem;
+  margin-bottom: 0.9rem;
+  transition: background 0.2s ease;
+}
+
+.recommendation-section:hover {
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+/* === RESPONSIVE DESIGN === */
+@media (max-width: 768px) {
+  .diet-container {
+    padding: 1.5rem;
+  }
+
+  .input-row {
+    flex-direction: column;
+  }
+
+  .title {
+    font-size: 1.6rem;
+  }
+
+  .recommendation-box {
+    padding: 1.2rem;
+  }
 }
